@@ -20,8 +20,7 @@
 - MySQL
 - Redis
 - Maven
-- Vue.js（前端，如有）
-
+## 结构
 src/
 ├── main/
 │   ├── java/com/hm/dianping/
