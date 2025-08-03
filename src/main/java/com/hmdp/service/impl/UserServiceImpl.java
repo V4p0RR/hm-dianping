@@ -7,17 +7,25 @@ import com.hmdp.dto.UserDTO;
 import com.hmdp.entity.User;
 import com.hmdp.mapper.UserMapper;
 import com.hmdp.service.IUserService;
+import com.hmdp.utils.RedisConstants;
 import com.hmdp.utils.RegexUtils;
 import com.hmdp.utils.SystemConstants;
 
 import cn.hutool.core.bean.BeanUtil;
+import cn.hutool.core.bean.copier.CopyOptions;
+import cn.hutool.core.lang.UUID;
 import cn.hutool.core.util.RandomUtil;
 import lombok.extern.slf4j.Slf4j;
 
 import java.time.LocalDateTime;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.concurrent.TimeUnit;
 
+import javax.annotation.Resource;
 import javax.servlet.http.HttpSession;
 
+import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 
 /**
@@ -31,6 +39,9 @@ import org.springframework.stereotype.Service;
 @Service
 @Slf4j
 public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements IUserService {
+
+  @Resource
+  private StringRedisTemplate stringRedisTemplate;// 注入 Redis 模板
 
   /**
    * 发送手机验证码
@@ -47,8 +58,10 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements IU
     // 生成验证码
     String code = RandomUtil.randomNumbers(6);
 
-    // 保存验证码到session
-    session.setAttribute("code", code);
+    // 保存验证码到redis phone为key
+    // 给key加业务前缀 与其他数据区分 并给code设置有效期2m
+    stringRedisTemplate.opsForValue().set(RedisConstants.LOGIN_CODE_KEY + phone, code, RedisConstants.LOGIN_CODE_TTL,
+        TimeUnit.MINUTES);
 
     // 发送验证码到手机
     log.debug("success sending code: {}", code);
@@ -73,10 +86,13 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements IU
     if (loginForm.getCode() != null) {
       // 如果验证码不为空 用验证码登录
       // 校验验证码
-      Object cacheCode = session.getAttribute("code");
+      String cacheCode = stringRedisTemplate.opsForValue().get(RedisConstants.LOGIN_CODE_KEY + loginForm.getPhone());
       if (cacheCode == null || !cacheCode.toString().equals(loginForm.getCode())) {
         return Result.fail("验证码错误");
       }
+      // 生成token 去除UUID中的短横线
+      String token = UUID.randomUUID().toString(true);
+
       // 检验用户是否存在数据库中
       User user = query().eq("phone", loginForm.getPhone()).one();
       if (user == null) {
@@ -88,13 +104,33 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements IU
         user.setUpdateTime(LocalDateTime.now());
         // 保存用户到数据库
         save(user);
-        // 保存用户信息到session中
-        session.setAttribute("user", user);
+        // 保存用户信息到redis中 用hash存
+        // 先将user对象转成map
+        UserDTO userDTO = BeanUtil.copyProperties(user, UserDTO.class);
+        Map<String, Object> userMap = BeanUtil.beanToMap(userDTO);
+        // 设置token为key，用户信息为value 加上业务前缀
+        stringRedisTemplate.opsForHash().putAll(RedisConstants.LOGIN_USER_KEY + token, userMap);
+        // 设置过期时间为30分钟
+        stringRedisTemplate.expire(RedisConstants.LOGIN_USER_KEY + token, 30, TimeUnit.MINUTES);
+        // 返回token
+        log.info("login success, user: {}", BeanUtil.copyProperties(user, UserDTO.class));
+        log.info("token:{}", token);
+        return Result.ok(token);
       }
-      // 如果用户存在，直接保存用户信息到session中
-      session.setAttribute("user", user);
+      // 如果用户存在,直接保存到redis中
+      UserDTO userDTO = BeanUtil.copyProperties(user, UserDTO.class);
+      Map<String, Object> userMap = BeanUtil.beanToMap(userDTO, new HashMap<>(),
+          CopyOptions.create()
+              .setIgnoreNullValue(true)
+              .setFieldValueEditor((fieldName, fieldValue) -> fieldValue.toString()));// 防止报Long无法转换为String
+      stringRedisTemplate.opsForHash().putAll(RedisConstants.LOGIN_USER_KEY + token, userMap);
+      // 设置过期时间为30分钟
+      stringRedisTemplate.expire(RedisConstants.LOGIN_USER_KEY + token, 30, TimeUnit.MINUTES);
       log.info("login success, user: {}", BeanUtil.copyProperties(user, UserDTO.class));
-      return Result.ok();
+      // 返回token
+      log.info("token:{}", token);
+      return Result.ok(token);
+      // 要在拦截器中设置只要访问了就更新token的有效期
     } else {
       // TODO 如果验证码为空，用密码登录
 

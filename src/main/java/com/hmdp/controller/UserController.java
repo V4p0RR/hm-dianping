@@ -54,7 +54,7 @@ public class UserController {
     @PostMapping("/login")
     public Result login(@RequestBody LoginFormDTO loginForm, HttpSession session) {
         // 实现登录功能
-        return Result.ok(userService.login(loginForm, session));
+        return Result.ok(userService.login(loginForm, session).getData());
     }
 
     /**
