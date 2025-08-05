@@ -30,6 +30,6 @@ public class ShopTypeController {
      */
     @GetMapping("list")
     public Result queryTypeList() {
-        return Result.ok(typeService.queryTypeList().getData());
+        return typeService.queryTypeList();
     }
 }
