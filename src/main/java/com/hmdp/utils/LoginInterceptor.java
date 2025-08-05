@@ -1,15 +1,10 @@
 package com.hmdp.utils;
 
-import java.util.Map;
-import java.util.concurrent.TimeUnit;
-
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 
 import org.springframework.lang.Nullable;
 import org.springframework.web.servlet.HandlerInterceptor;
-
-import lombok.extern.slf4j.Slf4j;
 
 /**
  * 登录拦截器，用于检查用户是否登录
