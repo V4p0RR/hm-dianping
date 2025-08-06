@@ -14,7 +14,7 @@
 
 ## 技术栈
 
-- Java 21
+- Java 8
 - Spring Boot
 - MyBatis-Plus
 - MySQL
