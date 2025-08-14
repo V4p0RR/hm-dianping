@@ -7,7 +7,6 @@ import com.hmdp.mapper.VoucherOrderMapper;
 import com.hmdp.service.ISeckillVoucherService;
 import com.hmdp.service.IVoucherOrderService;
 import com.hmdp.utils.RedisIdWorker;
-import com.hmdp.utils.SimpleRedisLock;
 import com.hmdp.utils.UserHolder;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 
@@ -15,6 +14,8 @@ import java.time.LocalDateTime;
 
 import javax.annotation.Resource;
 
+import org.redisson.api.RLock;
+import org.redisson.api.RedissonClient;
 import org.springframework.aop.framework.AopContext;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
@@ -37,12 +38,13 @@ public class VoucherOrderServiceImpl extends ServiceImpl<VoucherOrderMapper, Vou
   private RedisIdWorker redisIdWorker;
   @Resource
   private StringRedisTemplate stringRedisTemplate;
+  @Resource
+  private RedissonClient redissonClient;
 
   /**
    * 秒杀优惠券
    */
   @Override
-  @Transactional
   public Result seckillVoucher(Long voucherId) {
     // 1.查询优惠券
     SeckillVoucher seckillVoucher = seckillVoucherService.getById(voucherId);
@@ -58,12 +60,12 @@ public class VoucherOrderServiceImpl extends ServiceImpl<VoucherOrderMapper, Vou
       return Result.fail("库存不足");
     }
 
-    // 创建锁对象 先获取用户id
+    // 先获取用户id
     Long userId = UserHolder.getUser().getId();
-    // 限定锁的范围是同一个用户
-    SimpleRedisLock lock = new SimpleRedisLock("order:" + userId, stringRedisTemplate);
-    // 尝试获取锁 过期时间10秒
-    boolean success = lock.tryLock(Long.valueOf(10));
+    // 创建锁对象 限定锁的范围是同一个用户
+    RLock lock = redissonClient.getLock("lock:order:" + userId);
+    // 尝试获取锁
+    boolean success = lock.tryLock();
     // 如果获取锁失败 那么就是重复下单
     if (!success) {
       return Result.fail("同一用户只能下一单!");

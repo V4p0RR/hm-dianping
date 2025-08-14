@@ -67,6 +67,17 @@
             <artifactId>hutool-all</artifactId>
             <version>5.7.17</version>
         </dependency>
+        <!-- redisson-->
+        <dependency>
+            <groupId>org.redisson</groupId>
+            <artifactId>redisson</artifactId>
+            <version>3.20.0</version>            <!-- 确保使用稳定版本 -->
+        </dependency>
+        <dependency>
+            <groupId>io.netty</groupId>
+            <artifactId>netty-all</artifactId>
+            <version>4.1.68.Final</version>            <!-- 确保 Netty 版本兼容 -->
+        </dependency>
     </dependencies>
 
     <build>
