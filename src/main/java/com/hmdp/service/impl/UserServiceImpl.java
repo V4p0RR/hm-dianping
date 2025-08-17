@@ -67,7 +67,7 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements IU
     log.debug("success sending code: {}", code);
 
     // 返回结果
-    return Result.ok();
+    return Result.ok(code);
   }
 
   /**
